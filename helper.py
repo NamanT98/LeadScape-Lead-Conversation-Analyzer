@@ -7,7 +7,8 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage, SystemMessage
 from core import *
-sdf
+import json
+
 
 class PipelineBot:
     def __init__(self) -> None:
@@ -30,11 +31,21 @@ class PipelineBot:
         self.summ_tokenizer = AutoTokenizer.from_pretrained("kabita-choudhary/finetuned-bart-for-conversation-summary")
         self.summarizer = AutoModelForSeq2SeqLM.from_pretrained("kabita-choudhary/finetuned-bart-for-conversation-summary").to(self.device)
 
+        with open("models/saved_tokenizer.json", "r") as file:
+            tokenizer_data = json.load(file)
         self.score_tokenizer=Tokenizer()
+        self.score_tokenizer.word2idx = tokenizer_data["word2idx"]
+        self.score_tokenizer.idx2word = {int(k): v for k, v in tokenizer_data["idx2word"].items()}  # Fix key type
+        self.score_tokenizer.word_count = tokenizer_data["word_count"]
         vocab_size = self.score_tokenizer.vocab_size()
-        self.score_model = CustomTransformer(5650, 128, 4, 2, 50, 1).to(self.device)
+        self.score_model = CustomTransformer(vocab_size, 128, 4, 2, 50, 1).to(self.device)
         self.score_model.load_state_dict(torch.load('models/model_epoch_10.pth',weights_only=True))
-
+        
+    def load_tokenizer(file_path):
+        
+        tokenizer = Tokenizer()
+        
+        return tokenizer
 
     def string_to_conversation(self,string:str)->list:
         return string.split('\n')
@@ -60,7 +71,7 @@ class PipelineBot:
         input_tensor = torch.tensor([encoded_example], dtype=torch.long).to(self.device)
         with torch.no_grad():
             output = self.score_model(input_tensor).squeeze() 
-            predicted_score = output.item()
+            predicted_score = output.item()+0.50
 
         return predicted_score
 
